@@ -5,7 +5,7 @@ A weekly planner built on Habit 3 of Stephen Covey's *The 7 Habits of Highly Eff
 It follows Covey's weekly planning process:
 
 1. **Connect to your mission.** Write a personal mission statement that guides everything else.
-2. **Identify your roles.** Each role gets a color. The app starts with: Tonic Chairman, Sales, Delivery & Developer, Finance, Housekeeper, Relationship Builder, Innovator, Jiu Jitsu.
+2. **Identify your roles.** Each role gets a color. The app starts with: Tonic Chairman, Sales, Delivery & Developer, Finance & Housekeeper, Relationship Builder, Innovator, Jiu Jitsu.
 3. **Set goals for each role.** Each goal has a measure of success, a plan, a target date and a status.
 4. **Turn goals into tasks.** Each week, choose the tasks that move your goals forward. Each task has a Quadrant (Q1–Q4) and a priority (A/B/C).
 5. **Break tasks into actions.** Every task can hold a checklist of concrete action steps.

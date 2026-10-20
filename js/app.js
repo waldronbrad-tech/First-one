@@ -68,8 +68,7 @@
       { name: 'Tonic Chairman', colorId: '3' },
       { name: 'Sales', colorId: '6' },
       { name: 'Delivery & Developer', colorId: '9' },
-      { name: 'Finance', colorId: '10' },
-      { name: 'Housekeeper', colorId: '5' },
+      { name: 'Finance & Housekeeper', colorId: '10' },
       { name: 'Relationship Builder', colorId: '4' },
       { name: 'Innovator', colorId: '1' },
       { name: 'Jiu Jitsu', colorId: '11' },
@@ -81,6 +80,7 @@
     'Individual|Partner|Parent|Professional|Community',
     'Tonic Chairman|Sales|Delivery|Developer|Finance|Housekeeper|Relationship Builder|Innovator',
     'Tonic Chairman|Sales|Delivery|Developer|Finance|Housekeeper|Relationship Builder|Innovator|Jiu Jitsu',
+    'Tonic Chairman|Sales|Delivery & Developer|Finance|Housekeeper|Relationship Builder|Innovator|Jiu Jitsu',
   ];
 
   function defaultState() {

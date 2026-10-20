@@ -63,19 +63,31 @@
   const minutesLabel = (min) => (min >= 60 ? `${Math.floor(min / 60)}h${min % 60 ? ' ' + (min % 60) + 'm' : ''}` : `${min}m`);
 
   // ---------- state ----------
+  function defaultRoles() {
+    return [
+      { name: 'Tonic Chairman', colorId: '3' },
+      { name: 'Sales', colorId: '6' },
+      { name: 'Delivery', colorId: '9' },
+      { name: 'Developer', colorId: '7' },
+      { name: 'Finance', colorId: '10' },
+      { name: 'Housekeeper', colorId: '5' },
+      { name: 'Relationship Builder', colorId: '4' },
+      { name: 'Innovator', colorId: '1' },
+    ].map((r) => ({ id: uid(), statement: '', ...r }));
+  }
+
+  // Roles seeded by the first version of the app, replaced if they were never used.
+  const SAMPLE_ROLES = 'Individual|Partner|Parent|Professional|Community';
+
   function defaultState() {
-    const roles = [
-      { name: 'Individual', colorId: '10', statement: 'Renew myself physically, mentally, spiritually and socially.' },
-      { name: 'Partner', colorId: '4', statement: '' },
-      { name: 'Parent', colorId: '6', statement: '' },
-      { name: 'Professional', colorId: '9', statement: '' },
-      { name: 'Community', colorId: '3', statement: '' },
-    ].map((r) => ({ id: uid(), ...r }));
     return {
       version: 1,
-      settings: { weekStartsOn: 0, clientId: '', calendarId: 'primary', defaultDuration: 60, theme: 'auto' },
+      settings: {
+        weekStartsOn: 1, clientId: '', calendarId: 'primary', defaultDuration: 60, theme: 'auto',
+        planningDay: 5, planningTime: '16:00',
+      },
       mission: '',
-      roles,
+      roles: defaultRoles(),
       goals: [],
       tasks: [],
       weeks: {},
@@ -88,7 +100,13 @@
       if (raw) {
         const s = JSON.parse(raw);
         const base = defaultState();
-        return { ...base, ...s, settings: { ...base.settings, ...(s.settings || {}) } };
+        const loaded = { ...base, ...s, settings: { ...base.settings, ...(s.settings || {}) } };
+        const untouched = !loaded.goals.length && !loaded.tasks.length;
+        if (untouched && loaded.roles.map((r) => r.name).join('|') === SAMPLE_ROLES) {
+          loaded.roles = defaultRoles();
+          loaded.settings.weekStartsOn = 1;
+        }
+        return loaded;
       }
     } catch (e) { /* fall through to defaults */ }
     return defaultState();
@@ -218,7 +236,7 @@
         <h2>Roles &amp; goals</h2>
         <button class="btn primary" data-act="new-role">+ Role</button>
       </div>
-      ${state.roles.length > 7 ? '<p class="hint warn" style="margin-bottom:12px">Covey suggests no more than seven roles. Consider combining some.</p>' : ''}
+      ${state.roles.length > 7 ? '<p class="hint" style="margin-bottom:12px">Covey suggests about seven roles. If a week feels crowded, consider which roles can share goals.</p>' : ''}
       <div class="grid cards">${roleCards || '<div class="empty">Add the roles you play: family, work, community, self.</div>'}</div>`;
   }
 
@@ -409,6 +427,18 @@
                 ${DOW.map((d, i) => `<option value="${i}" ${s.weekStartsOn === i ? 'selected' : ''}>${d}</option>`).join('')}
               </select>
             </div>
+            <div class="row-2">
+              <div>
+                <label for="set-pday">Weekly planning day</label>
+                <select id="set-pday" data-setting="planningDay">
+                  ${DOW.map((d, i) => `<option value="${i}" ${s.planningDay === i ? 'selected' : ''}>${d}</option>`).join('')}
+                </select>
+              </div>
+              <div>
+                <label for="set-ptime">Planning time</label>
+                <input type="time" id="set-ptime" data-setting="planningTime" value="${esc(s.planningTime)}">
+              </div>
+            </div>
             <div>
               <label for="set-dur">Default task length (minutes)</label>
               <input type="number" id="set-dur" min="5" step="5" data-setting="defaultDuration" value="${s.defaultDuration}">
@@ -439,8 +469,22 @@
     document.querySelectorAll('.tabs [data-view]').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.view === view)));
     const dates = weekDates(currentWeek);
     $('#week-label').textContent = `${fmtDate(dates[0], { month: 'short', day: 'numeric' })} – ${fmtDate(dates[6], { month: 'short', day: 'numeric', year: 'numeric' })}`;
-    $('#view').innerHTML = VIEWS[view]();
+    $('#view').innerHTML = planningBanner() + VIEWS[view]();
     applyTheme();
+  }
+
+  // Shown from the planning time on planning day (default Friday 4pm) until planned or dismissed.
+  function planningBanner() {
+    const now = new Date();
+    const { planningDay, planningTime } = state.settings;
+    const hhmm = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+    if (now.getDay() !== planningDay || hhmm < planningTime || state.planningDismissed === ymd(now)) return '';
+    return `<div class="banner" role="status">
+      <span>&#129517; <strong>Time for your weekly planning.</strong> Review this week, then put first things first for next week.</span>
+      <span class="spacer"></span>
+      <button class="btn primary small" data-act="start-planning">Plan next week</button>
+      <button class="btn small ghost" data-act="dismiss-planning">Dismiss</button>
+    </div>`;
   }
 
   function applyTheme() {
@@ -832,6 +876,14 @@
       editTask(null, { title: `${s.label}: ${text || ''}`.trim(), roleId: self && self.id });
     },
     rollover,
+    'start-planning': () => {
+      state.planningDismissed = ymd(new Date());
+      currentWeek = ymd(addDays(parseYmd(weekKey(new Date())), 7));
+      view = 'compass';
+      save(); render();
+      toast('Planning next week. Start with your mission and roles.');
+    },
+    'dismiss-planning': () => { state.planningDismissed = ymd(new Date()); save(); render(); },
     'gcal-connect': async () => { if (await ensureConnected()) render(); },
     'gcal-disconnect': () => { GCal.disconnect(); calEvents = []; calEventsWeek = null; render(); toast('Disconnected.'); },
     'gcal-load': loadCalendar,
@@ -867,6 +919,8 @@
     if (el.dataset.setting) {
       const key = el.dataset.setting;
       if (key === 'weekStartsOn') setWeekStart(Number(el.value));
+      else if (key === 'planningDay') state.settings[key] = Number(el.value);
+      else if (key === 'planningTime') state.settings[key] = el.value || '16:00';
       else if (key === 'defaultDuration') state.settings[key] = Math.max(5, Number(el.value) || 60);
       else state.settings[key] = el.value.trim() || (key === 'calendarId' ? 'primary' : '');
       save();

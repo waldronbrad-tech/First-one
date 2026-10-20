@@ -5,13 +5,17 @@ A weekly planner built on Habit 3 of Stephen Covey's *The 7 Habits of Highly Eff
 It follows Covey's weekly planning process:
 
 1. **Connect to your mission.** Write a personal mission statement that guides everything else.
-2. **Identify your roles.** Name up to seven roles (Individual, Partner, Parent, Professional, Community...). Each role gets a color.
+2. **Identify your roles.** Each role gets a color. The app starts with: Tonic Chairman, Sales, Delivery, Developer, Finance, Housekeeper, Relationship Builder, Innovator.
 3. **Set goals for each role.** Each goal has a measure of success, a plan, a target date and a status.
 4. **Turn goals into tasks.** Each week, choose the tasks that move your goals forward. Each task has a Quadrant (Q1–Q4) and a priority (A/B/C).
 5. **Break tasks into actions.** Every task can hold a checklist of concrete action steps.
 6. **Schedule the big rocks.** Drag tasks from the "Big rocks" tray onto days and give them a time.
 7. **Sharpen the Saw.** Plan renewal in all four dimensions: physical, mental, spiritual, social/emotional.
 8. **Evaluate.** The Review tab shows completion, how much of your week was Quadrant II, how many goals you moved forward, and how balanced your roles were. There's also space for a written reflection.
+
+## Weekly planning ritual
+
+Planning happens **last thing on Friday** (default 4:00pm, adjustable in Settings). From that time on planning day, a banner appears. **Plan next week** jumps to the coming week (weeks run Monday–Sunday) so you can set its big rocks. A matching recurring "Weekly Compass planning" event in Google Calendar gives a pop-up reminder.
 
 ## Color code
 

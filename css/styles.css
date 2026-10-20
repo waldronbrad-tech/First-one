@@ -161,6 +161,14 @@ label { display: block; font-size: .85rem; color: var(--muted); margin-bottom: 4
 .hint { color: var(--muted); font-size: .85rem; }
 .section-title { margin: 24px 0 12px; display: flex; align-items: center; gap: 12px; justify-content: space-between; }
 
+.banner {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+  background: var(--surface); border: 1px solid var(--accent); border-left: 6px solid var(--accent);
+  border-radius: var(--radius); padding: 10px 14px; margin-bottom: 16px;
+}
+.banner .spacer { flex: 1; }
+.row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
 .saw-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
 .saw-item .row { display: flex; gap: 6px; }
 

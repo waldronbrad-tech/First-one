@@ -70,6 +70,8 @@ Once connected, sync is **automatic and two-way**:
    Under **Authorized JavaScript origins** add `https://waldronbrad-tech.github.io` (and `http://localhost:8000` if you run it locally).
 5. Copy the Client ID into **Settings → Google Calendar → OAuth Client ID** in the app, then click **Connect Google Calendar** in the header.
 
+The hosted app already has its Client ID built in (`DEFAULT_CLIENT_ID` in `js/app.js`), so on https://waldronbrad-tech.github.io/First-one/ you only need to click **Connect Google Calendar**.
+
 The app requests only the `calendar.events` scope. The access token stays in the browser tab and is never stored.
 
 ## Project layout

@@ -4,6 +4,8 @@
   'use strict';
 
   const STORAGE_KEY = 'weeklyCompass.v1';
+  // OAuth Client ID for the hosted app (https://waldronbrad-tech.github.io). Not a secret.
+  const DEFAULT_CLIENT_ID = '967205404225-3tv8k291racu7oe2ed8b9l542b16a9rg.apps.googleusercontent.com';
 
   // Google Calendar's event colors, so a role's color carries over to the calendar.
   const COLORS = [
@@ -81,7 +83,7 @@
     return {
       version: 1,
       settings: {
-        weekStartsOn: 1, clientId: '', calendarId: 'primary', defaultDuration: 60, theme: 'auto',
+        weekStartsOn: 1, clientId: DEFAULT_CLIENT_ID, calendarId: 'primary', defaultDuration: 60, theme: 'auto',
         planningDay: 5, planningTime: '16:30', gcalLinked: false,
       },
       mission: '',
@@ -100,6 +102,7 @@
         const s = JSON.parse(raw);
         const base = defaultState();
         const loaded = { ...base, ...s, settings: { ...base.settings, ...(s.settings || {}) } };
+        if (!loaded.settings.clientId) loaded.settings.clientId = DEFAULT_CLIENT_ID;
         const untouched = !loaded.goals.length && !loaded.tasks.length;
         if (untouched && PREVIOUS_SEEDS.includes(loaded.roles.map((r) => r.name).join('|'))) {
           loaded.roles = defaultRoles();
@@ -1113,7 +1116,7 @@
       else if (key === 'planningDay') state.settings[key] = Number(el.value);
       else if (key === 'planningTime') state.settings[key] = el.value || '16:30';
       else if (key === 'defaultDuration') state.settings[key] = Math.max(5, Number(el.value) || 60);
-      else state.settings[key] = el.value.trim() || (key === 'calendarId' ? 'primary' : '');
+      else state.settings[key] = el.value.trim() || ({ calendarId: 'primary', clientId: DEFAULT_CLIENT_ID }[key] || '');
       save();
       render();
     } else if (el.id === 'import-file' && el.files[0]) {

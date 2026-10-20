@@ -169,8 +169,6 @@ label { display: block; font-size: .85rem; color: var(--muted); margin-bottom: 4
 .banner .spacer { flex: 1; }
 .row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 
-.saw-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
-.saw-item .row { display: flex; gap: 6px; }
 
 /* ---------- roles & goals ---------- */
 .role-card { border-top: 5px solid var(--c); }

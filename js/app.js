@@ -28,13 +28,6 @@
     4: { name: 'Not Urgent & Not Important', hint: 'Waste: trivia, busywork, time-wasters' },
   };
 
-  const SAW = [
-    { key: 'physical', label: 'Physical', ph: 'Exercise, nutrition, rest' },
-    { key: 'mental', label: 'Mental', ph: 'Reading, learning, planning' },
-    { key: 'spiritual', label: 'Spiritual', ph: 'Values, meditation, nature' },
-    { key: 'social', label: 'Social / Emotional', ph: 'Service, empathy, connection' },
-  ];
-
   const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
   const TZ = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
@@ -141,7 +134,7 @@
   const taskRole = (t) => roleById(t.roleId) || UNASSIGNED;
   const taskColor = (t) => colorHex(taskRole(t).colorId);
   const weekData = (key = currentWeek) => {
-    if (!state.weeks[key]) state.weeks[key] = { saw: {}, reflection: '' };
+    if (!state.weeks[key]) state.weeks[key] = { reflection: '' };
     return state.weeks[key];
   };
   const weekTasks = (key = currentWeek) => state.tasks.filter((t) => t.week === key);
@@ -195,16 +188,6 @@
 
   // ---------- views ----------
   function renderCompass() {
-    const wd = weekData();
-    const sawHtml = SAW.map((s) => `
-      <div class="saw-item">
-        <label for="saw-${s.key}">${s.label}</label>
-        <div class="row">
-          <input type="text" id="saw-${s.key}" data-saw="${s.key}" value="${esc(wd.saw[s.key] || '')}" placeholder="${esc(s.ph)}">
-          <button class="btn small" data-act="saw-task" data-key="${s.key}" title="Turn into a scheduled task">+ Task</button>
-        </div>
-      </div>`).join('');
-
     const roleCards = state.roles.map((r) => {
       const goals = state.goals.filter((g) => g.roleId === r.id);
       const thisWeek = weekTasks().filter((t) => t.roleId === r.id);
@@ -233,18 +216,11 @@
     }).join('');
 
     return `
-      <div class="grid two">
-        <section class="panel">
-          <div class="panel-head"><h2>Personal mission statement</h2></div>
-          <textarea id="mission" rows="5" placeholder="What do I want to be (character) and do (contributions), and what values guide me?">${esc(state.mission)}</textarea>
-          <p class="hint" style="margin-top:6px">Begin each weekly plan by reconnecting with your mission. It is the "true north" for every role and goal below.</p>
-        </section>
-        <section class="panel">
-          <div class="panel-head"><h2>Sharpen the Saw &mdash; this week</h2></div>
-          <div class="saw-grid">${sawHtml}</div>
-          <p class="hint" style="margin-top:8px">Renewal in all four dimensions is Quadrant II work that fuels every role.</p>
-        </section>
-      </div>
+      <section class="panel">
+        <div class="panel-head"><h2>Personal mission statement</h2></div>
+        <textarea id="mission" rows="4" placeholder="What do I want to be (character) and do (contributions), and what values guide me?">${esc(state.mission)}</textarea>
+        <p class="hint" style="margin-top:6px">Begin each weekly plan by reconnecting with your mission. It is the "true north" for every role and goal below.</p>
+      </section>
       <div class="section-title">
         <h2>Roles &amp; goals</h2>
         <button class="btn primary" data-act="new-role">+ Role</button>
@@ -1079,12 +1055,6 @@
       $('#action-rows .action-edit:last-child input[type="text"]', form).focus();
     },
     'remove-action': (el) => el.closest('.action-edit').remove(),
-    'saw-task': (el) => {
-      const s = SAW.find((x) => x.key === el.dataset.key);
-      const text = weekData().saw[s.key];
-      const self = state.roles.find((r) => /individual|self|personal/i.test(r.name));
-      editTask(null, { title: `${s.label}: ${text || ''}`.trim(), roleId: self && self.id });
-    },
     rollover,
     'start-planning': () => {
       state.planningDismissed = ymd(new Date());
@@ -1131,7 +1101,6 @@
     const el = e.target;
     if (el.id === 'mission') state.mission = el.value;
     else if (el.id === 'reflection') weekData().reflection = el.value;
-    else if (el.dataset.saw) weekData().saw[el.dataset.saw] = el.value;
     else return;
     save();
   });

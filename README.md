@@ -10,8 +10,7 @@ It follows Covey's weekly planning process:
 4. **Turn goals into tasks.** Each week, choose the tasks that move your goals forward. Each task has a Quadrant (Q1–Q4) and a priority (A/B/C).
 5. **Break tasks into actions.** Every task can hold a checklist of concrete action steps.
 6. **Schedule the big rocks.** Drag tasks from the "Big rocks" tray onto days and give them a time.
-7. **Sharpen the Saw.** Plan renewal in all four dimensions: physical, mental, spiritual, social/emotional.
-8. **Evaluate.** The Review tab shows completion, how much of your week was Quadrant II, how many goals you moved forward, and how balanced your roles were. There's also space for a written reflection.
+7. **Evaluate.** The Review tab shows completion, how much of your week was Quadrant II, how many goals you moved forward, and how balanced your roles were. There's also space for a written reflection.
 
 ## Planning a month ahead
 

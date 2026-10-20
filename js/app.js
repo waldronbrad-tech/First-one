@@ -73,11 +73,15 @@
       { name: 'Housekeeper', colorId: '5' },
       { name: 'Relationship Builder', colorId: '4' },
       { name: 'Innovator', colorId: '1' },
+      { name: 'Jiu Jitsu', colorId: '11' },
     ].map((r) => ({ id: uid(), statement: '', ...r }));
   }
 
-  // Roles seeded by the first version of the app, replaced if they were never used.
-  const SAMPLE_ROLES = 'Individual|Partner|Parent|Professional|Community';
+  // Roles seeded by earlier versions of the app, replaced if they were never used.
+  const PREVIOUS_SEEDS = [
+    'Individual|Partner|Parent|Professional|Community',
+    'Tonic Chairman|Sales|Delivery|Developer|Finance|Housekeeper|Relationship Builder|Innovator',
+  ];
 
   function defaultState() {
     return {
@@ -102,7 +106,7 @@
         const base = defaultState();
         const loaded = { ...base, ...s, settings: { ...base.settings, ...(s.settings || {}) } };
         const untouched = !loaded.goals.length && !loaded.tasks.length;
-        if (untouched && loaded.roles.map((r) => r.name).join('|') === SAMPLE_ROLES) {
+        if (untouched && PREVIOUS_SEEDS.includes(loaded.roles.map((r) => r.name).join('|'))) {
           loaded.roles = defaultRoles();
           loaded.settings.weekStartsOn = 1;
         }

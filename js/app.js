@@ -67,8 +67,7 @@
     return [
       { name: 'Tonic Chairman', colorId: '3' },
       { name: 'Sales', colorId: '6' },
-      { name: 'Delivery', colorId: '9' },
-      { name: 'Developer', colorId: '7' },
+      { name: 'Delivery & Developer', colorId: '9' },
       { name: 'Finance', colorId: '10' },
       { name: 'Housekeeper', colorId: '5' },
       { name: 'Relationship Builder', colorId: '4' },
@@ -81,6 +80,7 @@
   const PREVIOUS_SEEDS = [
     'Individual|Partner|Parent|Professional|Community',
     'Tonic Chairman|Sales|Delivery|Developer|Finance|Housekeeper|Relationship Builder|Innovator',
+    'Tonic Chairman|Sales|Delivery|Developer|Finance|Housekeeper|Relationship Builder|Innovator|Jiu Jitsu',
   ];
 
   function defaultState() {
@@ -88,7 +88,7 @@
       version: 1,
       settings: {
         weekStartsOn: 1, clientId: '', calendarId: 'primary', defaultDuration: 60, theme: 'auto',
-        planningDay: 5, planningTime: '16:00',
+        planningDay: 5, planningTime: '16:30',
       },
       mission: '',
       roles: defaultRoles(),
@@ -109,6 +109,7 @@
         if (untouched && PREVIOUS_SEEDS.includes(loaded.roles.map((r) => r.name).join('|'))) {
           loaded.roles = defaultRoles();
           loaded.settings.weekStartsOn = 1;
+          loaded.settings.planningTime = base.settings.planningTime;
         }
         return loaded;
       }
@@ -924,7 +925,7 @@
       const key = el.dataset.setting;
       if (key === 'weekStartsOn') setWeekStart(Number(el.value));
       else if (key === 'planningDay') state.settings[key] = Number(el.value);
-      else if (key === 'planningTime') state.settings[key] = el.value || '16:00';
+      else if (key === 'planningTime') state.settings[key] = el.value || '16:30';
       else if (key === 'defaultDuration') state.settings[key] = Math.max(5, Number(el.value) || 60);
       else state.settings[key] = el.value.trim() || (key === 'calendarId' ? 'primary' : '');
       save();

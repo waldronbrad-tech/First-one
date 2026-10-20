@@ -1,0 +1,23 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Weekly Compass//EN
+CALSCALE:GREGORIAN
+BEGIN:VEVENT
+UID:753ceyexsgj0@weekly-compass
+DTSTAMP:20261020T170757Z
+DTSTART:20261020T090000Z
+DTEND:20261020T100000Z
+SUMMARY:Draft sales plan outline
+DESCRIPTION:Role: Professional\nGoal: Launch Q4 sales plan\nQuadrant 2: Not Urgent & Important · Priority A\n\nAction steps:\n[x] Pull last quarter numbers\n[ ] Write 1-page outline\n\nPlanned with Weekly Compass
+CATEGORIES:Professional
+END:VEVENT
+BEGIN:VEVENT
+UID:zeo2a50csgyq@weekly-compass
+DTSTAMP:20261020T170757Z
+DTSTART:20261022T190000Z
+DTEND:20261022T200000Z
+SUMMARY:Date night
+DESCRIPTION:Role: Partner\nQuadrant 2: Not Urgent & Important · Priority A\n\nPlanned with Weekly Compass
+CATEGORIES:Partner
+END:VEVENT
+END:VCALENDAR

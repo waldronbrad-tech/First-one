@@ -50,6 +50,12 @@ window.GCal = (() => {
     expiresAt = 0;
   }
 
+  // Forget a token Google has rejected, without revoking the user's consent.
+  function expire() {
+    token = null;
+    expiresAt = 0;
+  }
+
   async function api(path, { method = 'GET', body } = {}) {
     if (!isConnected()) {
       const e = new Error('Not connected to Google Calendar.');
@@ -73,16 +79,24 @@ window.GCal = (() => {
 
   const eventsPath = (calendarId) => `/calendars/${encodeURIComponent(calendarId)}/events`;
 
-  async function listEvents(calendarId, timeMin, timeMax) {
-    const q = new URLSearchParams({
-      timeMin: timeMin.toISOString(),
-      timeMax: timeMax.toISOString(),
-      singleEvents: 'true',
-      orderBy: 'startTime',
-      maxResults: '250',
-    });
-    const data = await api(`${eventsPath(calendarId)}?${q}`);
-    return (data && data.items) || [];
+  async function listEvents(calendarId, timeMin, timeMax, { showDeleted = false } = {}) {
+    const items = [];
+    let pageToken = '';
+    do {
+      const q = new URLSearchParams({
+        timeMin: timeMin.toISOString(),
+        timeMax: timeMax.toISOString(),
+        singleEvents: 'true',
+        orderBy: 'startTime',
+        maxResults: '250',
+        showDeleted: String(showDeleted),
+      });
+      if (pageToken) q.set('pageToken', pageToken);
+      const data = await api(`${eventsPath(calendarId)}?${q}`);
+      items.push(...((data && data.items) || []));
+      pageToken = data && data.nextPageToken;
+    } while (pageToken);
+    return items;
   }
 
   // Update the event we created earlier; recreate it if it was deleted in Google Calendar.
@@ -105,5 +119,5 @@ window.GCal = (() => {
     }
   }
 
-  return { connect, disconnect, isConnected, listEvents, upsertEvent, deleteEvent };
+  return { connect, disconnect, expire, isConnected, listEvents, upsertEvent, deleteEvent };
 })();

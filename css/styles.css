@@ -96,7 +96,7 @@ label { display: block; font-size: .85rem; color: var(--muted); margin-bottom: 4
 .brand-mark { width: 36px; height: 36px; color: var(--accent); }
 .brand h1 { font-size: 1.3rem; }
 .tagline { color: var(--muted); font-size: .85rem; }
-.week-nav { display: flex; align-items: center; gap: 6px; }
+.week-nav { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .week-label { min-width: 170px; text-align: center; font-weight: 600; }
 
 .tabs {
@@ -258,6 +258,35 @@ label { display: block; font-size: .85rem; color: var(--muted); margin-bottom: 4
 .legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: .85rem; margin-bottom: 12px; }
 .legend span { display: inline-flex; align-items: center; gap: 6px; }
 
+/* ---------- month ---------- */
+.month-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+.mhead { font-size: .8rem; font-weight: 700; color: var(--muted); padding: 4px 6px; }
+.mcell {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+  min-height: 110px; padding: 4px; display: flex; flex-direction: column; gap: 3px; min-width: 0;
+}
+.mcell.out { opacity: .55; }
+.mcell.today { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.mcell-head { display: flex; justify-content: space-between; align-items: center; }
+.mday { border: 0; background: none; cursor: pointer; font-weight: 700; padding: 2px 4px; border-radius: 6px; }
+.mday:hover { background: var(--surface-2); }
+.mdow { display: none; font-weight: 400; color: var(--muted); }
+.madd { padding: 0 6px; }
+.mtask, .mevent, .mgoal {
+  font-size: .75rem; line-height: 1.35; padding: 2px 6px; border-radius: 4px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer;
+}
+.mtask { background: color-mix(in srgb, var(--c) 18%, var(--surface)); border-left: 3px solid var(--c); }
+.mtask.done { text-decoration: line-through; color: var(--muted); }
+.mevent { background: var(--surface-2); border-left: 3px solid var(--c); color: var(--muted); cursor: default; }
+.mgoal { border: 1px dashed var(--c); font-weight: 600; }
+.mtime { color: var(--muted); }
+.mgoal + .task, .mgoal + .gevent { margin-top: 2px; }
+
+.sync-status.ok { color: var(--q2); }
+.sync-status.warn { color: var(--danger); border-color: var(--danger); }
+.sync-status.busy { color: var(--muted); }
+
 /* ---------- review ---------- */
 .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 16px; }
 .stat { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 14px; }
@@ -316,8 +345,15 @@ label { display: block; font-size: .85rem; color: var(--muted); margin-bottom: 4
 }
 
 @media (max-width: 600px) {
+  .month-grid { grid-template-columns: 1fr; }
+  .mhead, .mcell.out { display: none; }
+  .mcell { min-height: 0; }
+  .mdow { display: inline; }
+  .mtask, .mevent, .mgoal { white-space: normal; font-size: .85rem; }
   .app-header, .tabs, .view { padding-left: 16px; padding-right: 16px; }
   .week-label { min-width: 0; font-size: .9rem; }
+  .week-nav { width: 100%; }
+  #sync-status { flex-basis: 100%; justify-content: center; }
   .modal .row, .modal .row.three { grid-template-columns: 1fr; }
   .bar-row { grid-template-columns: 100px 1fr 56px; }
   .tray .task { width: 100%; }

@@ -53,6 +53,7 @@
     d.setDate(d.getDate() - ((d.getDay() - state.settings.weekStartsOn + 7) % 7));
     return ymd(d);
   };
+  const firstOfMonth = (d) => ymd(new Date(d.getFullYear(), d.getMonth(), 1));
   const weekDates = (key) => Array.from({ length: 7 }, (_, i) => addDays(parseYmd(key), i));
   const fmtDate = (d, opts) => d.toLocaleDateString(undefined, opts);
   const fmtTime = (hhmm) => {
@@ -88,13 +89,14 @@
       version: 1,
       settings: {
         weekStartsOn: 1, clientId: '', calendarId: 'primary', defaultDuration: 60, theme: 'auto',
-        planningDay: 5, planningTime: '16:30',
+        planningDay: 5, planningTime: '16:30', gcalLinked: false,
       },
       mission: '',
       roles: defaultRoles(),
       goals: [],
       tasks: [],
       weeks: {},
+      pendingDeletes: [],
     };
   }
 
@@ -117,15 +119,21 @@
     return defaultState();
   }
 
-  function save() {
+  function persist() {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (e) { toast('Could not save to this browser.'); }
+  }
+
+  // Every change is saved locally and then pushed to Google Calendar.
+  function save() {
+    persist();
+    scheduleSync();
   }
 
   let state = load();
   let currentWeek = weekKey(new Date());
   let view = 'compass';
-  let calEvents = [];
-  let calEventsWeek = null;
+  let currentMonth = firstOfMonth(new Date());
+  let eventsByDay = {};
 
   const roleById = (id) => state.roles.find((r) => r.id === id);
   const goalById = (id) => state.goals.find((g) => g.id === id);
@@ -288,30 +296,17 @@
 
   function renderWeek() {
     const dates = weekDates(currentWeek);
-    const tasks = weekTasks();
-    const tray = tasks.filter((t) => !t.date).sort(sortTasks);
+    const tray = weekTasks().filter((t) => !t.date).sort(sortTasks);
     const today = ymd(new Date());
-    const showEvents = calEventsWeek === currentWeek;
-    const connected = GCal.isConnected();
-
-    const legend = state.roles.map((r) => `<span><span class="swatch" style="--c:${colorHex(r.colorId)}"></span>${esc(r.name)}</span>`).join('')
-      + Object.keys(QUADRANTS).map((q) => `<span><span class="q q${q}">Q${q}</span>${QUADRANTS[q].name}</span>`).join('');
 
     const days = dates.map((d) => {
       const key = ymd(d);
-      const items = tasks.filter((t) => t.date === key).map((t) => ({ sort: t.start || '', html: taskCard(t, { draggable: true }) }));
-      if (showEvents) {
-        calEvents.filter((ev) => eventDay(ev) === key).forEach((ev) => {
-          const start = ev.start.dateTime ? new Date(ev.start.dateTime) : null;
-          const time = start ? start.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }) : 'All day';
-          items.push({
-            sort: start ? `${pad(start.getHours())}:${pad(start.getMinutes())}` : '',
-            html: `<div class="gevent" style="--c:${ev.colorId ? colorHex(ev.colorId) : 'var(--q4)'}" title="Google Calendar event"><strong>${esc(ev.summary || '(no title)')}</strong>${esc(time)}</div>`,
-          });
-        });
-      }
+      const dayTasks = state.tasks.filter((t) => t.date === key);
+      const items = dayTasks.map((t) => ({ sort: t.start || '', html: taskCard(t, { draggable: true }) }));
+      state.goals.filter((g) => g.due === key).forEach((g) => items.push({ sort: '', html: goalChip(g) }));
+      (eventsByDay[key] || []).forEach((ev) => items.push(eventChip(ev)));
       items.sort((a, b) => (a.sort || '99').localeCompare(b.sort || '99'));
-      const minutes = tasks.filter((t) => t.date === key && t.start).reduce((s, t) => s + t.duration, 0);
+      const minutes = dayTasks.filter((t) => t.start).reduce((sum, t) => sum + t.duration, 0);
       return `<section class="day ${key === today ? 'today' : ''}">
         <div class="day-head"><span class="dow">${DOW[d.getDay()]}</span><span class="date">${fmtDate(d, { month: 'short', day: 'numeric' })}</span></div>
         <div class="day-body dropzone" data-date="${key}">${items.map((i) => i.html).join('')}</div>
@@ -325,17 +320,74 @@
         <button class="btn primary" data-act="new-task">+ Task</button>
         <button class="btn" data-act="rollover">Roll unfinished to next week</button>
         <span class="spacer"></span>
-        ${connected
-          ? `<button class="btn" data-act="gcal-load">Show my calendar</button>
-             <button class="btn primary" data-act="gcal-push">Sync week to Google Calendar</button>`
-          : '<button class="btn" data-act="gcal-connect">Connect Google Calendar</button>'}
+        ${calendarButton()}
         <button class="btn" data-act="export-ics">Export .ics</button>
       </div>
-      <div class="legend">${legend}</div>
+      <div class="legend">${roleLegend()}${Object.keys(QUADRANTS).map((q) => `<span><span class="q q${q}">Q${q}</span>${QUADRANTS[q].name}</span>`).join('')}</div>
       <h3 style="margin-bottom:6px">Big rocks to schedule</h3>
-      <p class="hint" style="margin-bottom:8px">"The key is not to prioritize what's on your schedule, but to schedule your priorities." Drag a task onto a day, or open it to set the day and time.</p>
+      <p class="hint" style="margin-bottom:8px">"The key is not to prioritize what's on your schedule, but to schedule your priorities." Drag a task onto a day, or open it to set the date and time.</p>
       <div class="tray dropzone" data-date="">${tray.map((t) => taskCard(t, { draggable: true })).join('') || '<span class="tray-empty">Everything is scheduled.</span>'}</div>
       <div class="week-grid">${days}</div>`;
+  }
+
+  const roleLegend = () => state.roles.map((r) => `<span><span class="swatch" style="--c:${colorHex(r.colorId)}"></span>${esc(r.name)}</span>`).join('');
+
+  const calendarButton = () => (GCal.isConnected()
+    ? '<button class="btn" data-act="sync-click">Sync now</button>'
+    : '<button class="btn" data-act="gcal-connect">Connect Google Calendar</button>');
+
+  function eventChip(ev, compact = false) {
+    const start = ev.start.dateTime ? new Date(ev.start.dateTime) : null;
+    const time = start ? start.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }) : 'All day';
+    const c = ev.colorId ? colorHex(ev.colorId) : 'var(--q4)';
+    const title = esc(ev.summary || '(no title)');
+    const html = compact
+      ? `<div class="mevent" style="--c:${c}" title="${title} (Google Calendar)">${start ? `<span class="mtime">${esc(time)}</span> ` : ''}${title}</div>`
+      : `<div class="gevent" style="--c:${c}" title="Google Calendar event"><strong>${title}</strong>${esc(time)}</div>`;
+    return { sort: start ? `${pad(start.getHours())}:${pad(start.getMinutes())}` : '', html };
+  }
+
+  function goalChip(g) {
+    const r = roleById(g.roleId) || UNASSIGNED;
+    return `<div class="mgoal" style="--c:${colorHex(r.colorId)}" data-act="edit-goal" data-id="${g.id}" title="Goal target date">&#127919; ${esc(g.title)}</div>`;
+  }
+
+  function monthRange() {
+    const m = parseYmd(currentMonth);
+    const last = new Date(m.getFullYear(), m.getMonth() + 1, 0);
+    return [parseYmd(weekKey(m)), addDays(parseYmd(weekKey(last)), 7)];
+  }
+
+  function renderMonth() {
+    const [start, end] = monthRange();
+    const month = parseYmd(currentMonth).getMonth();
+    const today = ymd(new Date());
+    const heads = Array.from({ length: 7 }, (_, i) => `<div class="mhead">${DOW[(state.settings.weekStartsOn + i) % 7]}</div>`).join('');
+    let cells = '';
+    for (let d = new Date(start); d < end; d = addDays(d, 1)) {
+      const key = ymd(d);
+      const items = state.tasks.filter((t) => t.date === key).map((t) => ({
+        sort: t.start || '',
+        html: `<div class="mtask ${t.done ? 'done' : ''}" style="--c:${taskColor(t)}" draggable="true" data-task="${t.id}" data-act="edit-task" data-id="${t.id}" title="${esc(t.title)}">${t.start ? `<span class="mtime">${esc(fmtTime(t.start))}</span> ` : ''}${esc(t.title)}</div>`,
+      }));
+      (eventsByDay[key] || []).forEach((ev) => items.push(eventChip(ev, true)));
+      items.sort((a, b) => (a.sort || '99').localeCompare(b.sort || '99'));
+      cells += `<div class="mcell dropzone ${d.getMonth() !== month ? 'out' : ''} ${key === today ? 'today' : ''}" data-date="${key}">
+        <div class="mcell-head">
+          <button class="mday" data-act="goto-week" data-date="${key}" title="Plan this week"><span class="mdow">${DOW[d.getDay()]} </span>${d.getDate()}</button>
+          <button class="btn small ghost madd" data-act="new-task" data-date="${key}" aria-label="Add task on ${esc(fmtDate(d, { weekday: 'long', month: 'long', day: 'numeric' }))}">+</button>
+        </div>
+        ${state.goals.filter((g) => g.due === key).map(goalChip).join('')}${items.map((i) => i.html).join('')}
+      </div>`;
+    }
+    return `
+      <div class="toolbar">
+        <p class="hint">Plan a month ahead: + adds a task on that date, drag tasks between days, or click a date to plan that week in detail.</p>
+        <span class="spacer"></span>
+        ${calendarButton()}
+      </div>
+      <div class="legend">${roleLegend()}</div>
+      <div class="month-grid">${heads}${cells}</div>`;
   }
 
   function eventDay(ev) {
@@ -404,7 +456,7 @@
       <div class="grid two">
         <section class="panel">
           <div class="panel-head"><h2>Google Calendar</h2>
-            <span class="hint">${GCal.isConnected() ? '&#9679; Connected' : 'Not connected'}</span></div>
+            <span class="hint">${GCal.isConnected() ? '&#9679; Connected, syncing automatically' : 'Not connected'}</span></div>
           <div class="grid" style="gap:12px">
             <div>
               <label for="set-client">OAuth Client ID</label>
@@ -420,7 +472,7 @@
                 ? '<button class="btn" data-act="gcal-disconnect">Disconnect</button>'
                 : '<button class="btn primary" data-act="gcal-connect">Connect</button>'}
             </div>
-            <p class="hint">Setup: in Google Cloud Console enable the Google Calendar API, create an OAuth Client ID of type "Web application", and add <code>${esc(location.origin)}</code> as an Authorized JavaScript origin. See the README for details. Each role's color becomes the event color in Google Calendar.</p>
+            <p class="hint">Setup: in Google Cloud Console enable the Google Calendar API, create an OAuth Client ID of type "Web application", and add <code>${esc(location.origin)}</code> as an Authorized JavaScript origin. See the README for details. Once connected, every scheduled task and goal target date syncs automatically in the role's color. Moving, renaming or deleting a synced event in Google Calendar updates the app too. Google sign-in lasts about an hour; after that, click Reconnect and any changes made in the meantime are sent.</p>
           </div>
         </section>
         <section class="panel">
@@ -468,14 +520,17 @@
       </div>`;
   }
 
-  const VIEWS = { compass: renderCompass, plan: renderPlan, week: renderWeek, review: renderReview, settings: renderSettings };
+  const VIEWS = { compass: renderCompass, plan: renderPlan, week: renderWeek, month: renderMonth, review: renderReview, settings: renderSettings };
 
   function render() {
     document.querySelectorAll('.tabs [data-view]').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.view === view)));
     const dates = weekDates(currentWeek);
-    $('#week-label').textContent = `${fmtDate(dates[0], { month: 'short', day: 'numeric' })} – ${fmtDate(dates[6], { month: 'short', day: 'numeric', year: 'numeric' })}`;
+    $('#week-label').textContent = view === 'month'
+      ? fmtDate(parseYmd(currentMonth), { month: 'long', year: 'numeric' })
+      : `${fmtDate(dates[0], { month: 'short', day: 'numeric' })} – ${fmtDate(dates[6], { month: 'short', day: 'numeric', year: 'numeric' })}`;
     $('#view').innerHTML = planningBanner() + VIEWS[view]();
     applyTheme();
+    updateSyncStatus();
   }
 
   // Shown from the planning time on planning day (default Friday 4pm) until planned or dismissed.
@@ -590,6 +645,7 @@
     submit.onDelete = () => {
       state.goals = state.goals.filter((x) => x !== goal);
       state.tasks.forEach((t) => { if (t.goalId === goal.id) t.goalId = null; });
+      if (goal.gcalEventId) state.pendingDeletes.push(goal.gcalEventId);
       save(); render();
     };
     openModal(`
@@ -609,7 +665,6 @@
 
   function editTask(task, defaults = {}) {
     const isNew = !task;
-    const dates = weekDates(currentWeek);
     const goal = goalById(defaults.goalId);
     const t = task || {
       title: defaults.title || '',
@@ -652,21 +707,11 @@
       if (isNew) state.tasks.push({ id: uid(), done: false, gcalEventId: null, ...data });
       else Object.assign(task, data);
     };
-    submit.onDelete = async () => {
+    submit.onDelete = () => {
       state.tasks = state.tasks.filter((x) => x !== task);
+      if (task.gcalEventId) state.pendingDeletes.push(task.gcalEventId);
       save(); render();
-      if (task.gcalEventId && GCal.isConnected()) {
-        try { await GCal.deleteEvent(state.settings.calendarId, task.gcalEventId); toast('Task and calendar event deleted.'); }
-        catch (e) { toast('Task deleted, but the calendar event could not be removed: ' + e.message); }
-      } else if (task.gcalEventId) {
-        toast('Task deleted. Its Google Calendar event was left in place (not connected).');
-      }
     };
-
-    const dayOpts = `<option value="">Unscheduled (big rock tray)</option>` + dates.map((d) => {
-      const k = ymd(d);
-      return `<option value="${k}" ${k === t.date ? 'selected' : ''}>${fmtDate(d, { weekday: 'long', month: 'short', day: 'numeric' })}</option>`;
-    }).join('') + (t.date && !dates.some((d) => ymd(d) === t.date) ? `<option value="${t.date}" selected>${esc(t.date)}</option>` : '');
 
     openModal(`
       <h2>${isNew ? 'New task' : 'Edit task'}</h2>
@@ -682,7 +727,7 @@
           ${['A', 'B', 'C'].map((p) => `<option ${t.priority === p ? 'selected' : ''}>${p}</option>`).join('')}</select></div>
       </div>
       <div class="row three">
-        <div><label for="f-date">Day</label><select id="f-date" name="date">${dayOpts}</select></div>
+        <div><label for="f-date">Date (blank = big rocks tray)</label><input type="date" id="f-date" name="date" value="${esc(t.date || '')}"></div>
         <div><label for="f-start">Start time</label><input type="time" id="f-start" name="start" value="${esc(t.start)}"></div>
         <div><label for="f-dur">Minutes</label><input type="number" id="f-dur" name="duration" min="5" step="5" value="${t.duration}"></div>
       </div>
@@ -721,7 +766,7 @@
       '\nPlanned with Weekly Compass',
     ].filter(Boolean);
     const body = {
-      summary: t.title,
+      summary: (t.done ? '✓ ' : '') + t.title,
       description: lines.join('\n'),
       colorId: role.colorId,
       status: 'confirmed',
@@ -742,56 +787,204 @@
     return body;
   }
 
-  async function ensureConnected() {
-    if (GCal.isConnected()) return true;
+  // ---------- two-way sync ----------
+  // Local changes are detected by comparing each item's event body with what was last sent,
+  // so anything edited anywhere in the app is pushed. Edits made in Google Calendar to synced
+  // events (time, title, done mark, deletion) are pulled back unless the app has newer edits.
+  const sig = (body) => JSON.stringify(body);
+  let syncing = false;
+  let syncAgain = false;
+  let syncTimer = null;
+  let syncError = '';
+
+  function goalEventBody(g) {
+    const role = roleById(g.roleId) || UNASSIGNED;
+    return {
+      summary: `${g.status === 'done' ? '✓ ' : ''}🎯 ${g.title}`,
+      description: [
+        `Goal · Role: ${role.name}`,
+        g.measure ? `Measure: ${g.measure}` : null,
+        g.plan ? `\nPlan:\n${g.plan}` : null,
+        '\nPlanned with Weekly Compass',
+      ].filter(Boolean).join('\n'),
+      colorId: role.colorId,
+      status: 'confirmed',
+      transparency: 'transparent',
+      start: { date: g.due },
+      end: { date: ymd(addDays(parseYmd(g.due), 1)) },
+      extendedProperties: { private: { weeklyCompassGoalId: g.id } },
+    };
+  }
+
+  function pendingChanges() {
+    const items = [];
+    const check = (obj, hasDate, makeBody) => {
+      if (hasDate) {
+        const body = makeBody(obj);
+        if (!obj.gcalEventId || sig(body) !== obj.gcalSig) items.push({ obj, body });
+      } else if (obj.gcalEventId) {
+        items.push({ obj, body: null });
+      }
+    };
+    state.tasks.forEach((t) => check(t, Boolean(t.date), eventBody));
+    state.goals.forEach((g) => check(g, Boolean(g.due), goalEventBody));
+    return items;
+  }
+
+  const pendingCount = () => pendingChanges().length + state.pendingDeletes.length;
+
+  function scheduleSync(delay = 1200) {
+    clearTimeout(syncTimer);
+    syncTimer = setTimeout(syncNow, delay);
+    updateSyncStatus();
+  }
+
+  async function syncNow() {
+    if (!GCal.isConnected()) { updateSyncStatus(); return; }
+    if (syncing) { syncAgain = true; return; }
+    syncing = true;
+    syncError = '';
+    updateSyncStatus();
+    const cal = state.settings.calendarId;
+    try {
+      while (state.pendingDeletes.length) {
+        await GCal.deleteEvent(cal, state.pendingDeletes[0]);
+        state.pendingDeletes.shift();
+        persist();
+      }
+      for (const { obj, body } of pendingChanges()) {
+        if (body) {
+          const ev = await GCal.upsertEvent(cal, obj.gcalEventId, body);
+          Object.assign(obj, { gcalEventId: ev.id, gcalSig: sig(body), gcalUpdated: ev.updated });
+        } else {
+          await GCal.deleteEvent(cal, obj.gcalEventId);
+          Object.assign(obj, { gcalEventId: null, gcalSig: null, gcalUpdated: null });
+        }
+        persist();
+      }
+      await pullVisible();
+    } catch (e) {
+      syncError = e.message;
+      if (e.status === 401) GCal.expire();
+    } finally {
+      syncing = false;
+      updateSyncStatus();
+      if (syncAgain) { syncAgain = false; scheduleSync(300); }
+    }
+  }
+
+  function visibleRange() {
+    if (view === 'month') return monthRange();
+    const start = parseYmd(currentWeek);
+    return [start, addDays(start, 7)];
+  }
+
+  async function pullVisible() {
+    if (!GCal.isConnected()) return;
+    const [from, to] = visibleRange();
+    const items = await GCal.listEvents(state.settings.calendarId, from, to, { showDeleted: true });
+    const byDay = {};
+    let changed = false;
+    for (const ev of items) {
+      const priv = (ev.extendedProperties && ev.extendedProperties.private) || {};
+      const task = priv.weeklyCompassTaskId && taskById(priv.weeklyCompassTaskId);
+      const goal = priv.weeklyCompassGoalId && goalById(priv.weeklyCompassGoalId);
+      if (task) { changed = applyRemoteTask(task, ev) || changed; continue; }
+      if (goal) { changed = applyRemoteGoal(goal, ev) || changed; continue; }
+      if (ev.status === 'cancelled') continue;
+      const day = eventDay(ev);
+      (byDay[day] = byDay[day] || []).push(ev);
+    }
+    for (let d = new Date(from); d < to; d = addDays(d, 1)) eventsByDay[ymd(d)] = byDay[ymd(d)] || [];
+    if (changed) persist();
+    if (changed || view === 'week' || view === 'month') safeRender();
+  }
+
+  function applyRemoteTask(t, ev) {
+    if (ev.id !== t.gcalEventId || ev.updated === t.gcalUpdated) return false;
+    if (t.gcalSig !== sig(eventBody(t))) return false; // edited in the app since last sync: app wins
+    if (ev.status === 'cancelled') {
+      Object.assign(t, { date: null, start: '', gcalEventId: null, gcalSig: null, gcalUpdated: null });
+      return true;
+    }
+    const summary = ev.summary || '';
+    if (summary.replace(/^✓\s*/, '')) t.title = summary.replace(/^✓\s*/, '');
+    t.done = summary.startsWith('✓');
+    if (ev.start.dateTime) {
+      const s = new Date(ev.start.dateTime);
+      const e = new Date(ev.end.dateTime);
+      t.date = ymd(s);
+      t.start = `${pad(s.getHours())}:${pad(s.getMinutes())}`;
+      t.duration = Math.max(5, Math.round((e - s) / 60000));
+    } else {
+      t.date = ev.start.date;
+      t.start = '';
+    }
+    t.week = weekKey(parseYmd(t.date));
+    Object.assign(t, { gcalUpdated: ev.updated, gcalSig: sig(eventBody(t)) });
+    return true;
+  }
+
+  function applyRemoteGoal(g, ev) {
+    if (ev.id !== g.gcalEventId || ev.updated === g.gcalUpdated) return false;
+    if (g.gcalSig !== sig(goalEventBody(g))) return false;
+    if (ev.status === 'cancelled') {
+      Object.assign(g, { due: '', gcalEventId: null, gcalSig: null, gcalUpdated: null });
+      return true;
+    }
+    if (ev.start.date) g.due = ev.start.date;
+    Object.assign(g, { gcalUpdated: ev.updated, gcalSig: sig(goalEventBody(g)) });
+    return true;
+  }
+
+  // Avoid re-rendering under someone who is typing.
+  function safeRender() {
+    const a = document.activeElement;
+    if (a && $('#view').contains(a) && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) return;
+    render();
+  }
+
+  function refreshVisible() {
+    if (!GCal.isConnected()) return;
+    pullVisible().catch((e) => { syncError = e.message; updateSyncStatus(); });
+  }
+
+  function updateSyncStatus() {
+    const el = $('#sync-status');
+    if (!el) return;
+    const n = pendingCount();
+    let text;
+    let cls;
+    if (!GCal.isConnected()) {
+      if (state.settings.gcalLinked) { text = n ? `Reconnect calendar · ${n} waiting` : 'Reconnect calendar'; cls = 'warn'; }
+      else { text = 'Connect Google Calendar'; cls = 'off'; }
+    } else if (syncing) { text = 'Syncing…'; cls = 'busy'; }
+    else if (syncError) { text = 'Sync failed · retry'; cls = 'warn'; }
+    else if (n) { text = `${n} to sync`; cls = 'busy'; }
+    else { text = '✓ Synced with Google'; cls = 'ok'; }
+    el.textContent = text;
+    el.title = syncError || 'Google Calendar sync';
+    el.className = `btn small sync-status ${cls}`;
+  }
+
+  async function connectCalendar() {
     if (!state.settings.clientId) {
       view = 'settings';
       render();
       toast('Add your Google OAuth Client ID to connect.');
-      return false;
+      return;
     }
     try {
       await GCal.connect(state.settings.clientId);
-      toast('Connected to Google Calendar.');
-      return true;
+      state.settings.gcalLinked = true;
+      persist();
+      toast('Connected. Syncing with Google Calendar…');
+      render();
+      await syncNow();
     } catch (e) {
       toast(e.message);
-      return false;
+      updateSyncStatus();
     }
-  }
-
-  async function loadCalendar() {
-    if (!(await ensureConnected())) return;
-    const dates = weekDates(currentWeek);
-    try {
-      const items = await GCal.listEvents(state.settings.calendarId, dates[0], addDays(dates[0], 7));
-      calEvents = items.filter((ev) => ev.status !== 'cancelled' && !(ev.extendedProperties && ev.extendedProperties.private && ev.extendedProperties.private.weeklyCompassTaskId));
-      calEventsWeek = currentWeek;
-      toast(`Loaded ${calEvents.length} calendar events.`);
-    } catch (e) {
-      toast('Could not load events: ' + e.message);
-    }
-    render();
-  }
-
-  async function pushWeek() {
-    if (!(await ensureConnected())) return;
-    const scheduled = weekTasks().filter((t) => t.date);
-    if (!scheduled.length) { toast('Schedule some tasks on days first.'); return; }
-    let ok = 0;
-    const failures = [];
-    for (const t of scheduled) {
-      try {
-        const ev = await GCal.upsertEvent(state.settings.calendarId, t.gcalEventId, eventBody(t));
-        t.gcalEventId = ev.id;
-        ok++;
-      } catch (e) {
-        failures.push(`${t.title}: ${e.message}`);
-      }
-    }
-    save();
-    render();
-    toast(failures.length ? `Synced ${ok}; ${failures.length} failed. ${failures[0]}` : `Synced ${ok} tasks to Google Calendar.`);
   }
 
   function exportIcs() {
@@ -851,10 +1044,22 @@
     currentWeek = weekKey(parseYmd(currentWeek));
   }
 
+  function shiftPeriod(n) {
+    if (view === 'month') {
+      const m = parseYmd(currentMonth);
+      currentMonth = ymd(new Date(m.getFullYear(), m.getMonth() + n, 1));
+    } else {
+      currentWeek = ymd(addDays(parseYmd(currentWeek), 7 * n));
+    }
+    render();
+    refreshVisible();
+  }
+
   const ACTIONS = {
-    'week-prev': () => { currentWeek = ymd(addDays(parseYmd(currentWeek), -7)); render(); },
-    'week-next': () => { currentWeek = ymd(addDays(parseYmd(currentWeek), 7)); render(); },
-    'week-today': () => { currentWeek = weekKey(new Date()); render(); },
+    'week-prev': () => shiftPeriod(-1),
+    'week-next': () => shiftPeriod(1),
+    'week-today': () => { currentWeek = weekKey(new Date()); currentMonth = firstOfMonth(new Date()); render(); refreshVisible(); },
+    'goto-week': (el) => { currentWeek = weekKey(parseYmd(el.dataset.date)); view = 'week'; render(); refreshVisible(); },
     'new-role': () => editRole(null),
     'edit-role': (el) => editRole(roleById(el.dataset.id)),
     'new-goal': (el) => editGoal(null, { roleId: el.dataset.role }),
@@ -889,10 +1094,14 @@
       toast('Planning next week. Start with your mission and roles.');
     },
     'dismiss-planning': () => { state.planningDismissed = ymd(new Date()); save(); render(); },
-    'gcal-connect': async () => { if (await ensureConnected()) render(); },
-    'gcal-disconnect': () => { GCal.disconnect(); calEvents = []; calEventsWeek = null; render(); toast('Disconnected.'); },
-    'gcal-load': loadCalendar,
-    'gcal-push': pushWeek,
+    'gcal-connect': connectCalendar,
+    'sync-click': () => (GCal.isConnected() ? syncNow() : connectCalendar()),
+    'gcal-disconnect': () => {
+      GCal.disconnect();
+      state.settings.gcalLinked = false;
+      eventsByDay = {};
+      persist(); render(); toast('Disconnected from Google Calendar.');
+    },
     'export-ics': exportIcs,
     'export-json': () => download(`weekly-compass-backup-${ymd(new Date())}.json`, JSON.stringify(state, null, 2), 'application/json'),
     reset: () => {
@@ -903,7 +1112,15 @@
 
   document.addEventListener('click', (e) => {
     const tab = e.target.closest('.tabs [data-view]');
-    if (tab) { view = tab.dataset.view; render(); return; }
+    if (tab) {
+      const from = view;
+      view = tab.dataset.view;
+      // Coming from a week, show the month containing it; otherwise stay on the month last viewed.
+      if (view === 'month' && from === 'week') currentMonth = firstOfMonth(addDays(parseYmd(currentWeek), 3));
+      render();
+      refreshVisible();
+      return;
+    }
     const el = e.target.closest('[data-act]');
     if (!el || !ACTIONS[el.dataset.act]) return;
     if (el.tagName !== 'INPUT') e.preventDefault();
@@ -943,14 +1160,14 @@
 
   // ---------- drag & drop scheduling ----------
   document.addEventListener('dragstart', (e) => {
-    const card = e.target.closest && e.target.closest('.task[draggable="true"]');
+    const card = e.target.closest && e.target.closest('[data-task][draggable="true"]');
     if (!card) return;
     e.dataTransfer.setData('text/plain', card.dataset.task);
     e.dataTransfer.effectAllowed = 'move';
     card.classList.add('dragging');
   });
   document.addEventListener('dragend', (e) => {
-    const card = e.target.closest && e.target.closest('.task');
+    const card = e.target.closest && e.target.closest('[data-task]');
     if (card) card.classList.remove('dragging');
   });
   document.addEventListener('dragover', (e) => {
@@ -977,6 +1194,10 @@
     save();
     render();
   });
+
+  // Keep both sides current while the app is open.
+  setInterval(() => { if (!document.hidden) syncNow(); }, 5 * 60 * 1000);
+  window.addEventListener('focus', () => syncNow());
 
   render();
 })();
